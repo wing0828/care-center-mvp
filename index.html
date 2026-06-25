@@ -104,6 +104,7 @@ const ACTIONTYPES=['보호자 상담','업무범위 재안내','보호사 상담
 const NAV=[
   {sec:'1차 MVP',items:[['dash','2','대시보드'],['incident','3','사건 기록'],['risk','4','위험가구'],['action','5','조치 기록'],['report','8','월간 리포트']]},
   {sec:'2차 MVP',items:[['sub','6','대체근무'],['scope','7','업무범위'],['worker','9','요양보호사']]},
+  {sec:'관리',items:[['mworker','+','요양보호사 관리'],['mrecipient','+','수급자 관리']]},
 ];
 
 let S={user:null,route:'dash',params:{},hist:[]};
@@ -477,8 +478,140 @@ async function viewWorkerCard(){
 }
 async function setWorker(id,status){load(true);await db.from('care_careworkers').update({attrition_status:status}).eq('id',id);load(false);toast('이탈위험: '+status);go('workercard',{id},false);}
 
+/* ---------- 관리: 요양보호사 ---------- */
+async function viewManageWorkers(){
+  const workers=await q('care_careworkers',{order:'created_at'});
+  return shell(hd('+','요양보호사 관리')+`
+    <div class="card"><h3>새 요양보호사 추가</h3>
+      <div class="row">
+        <div><div class="label">이름</div><input id="nw_name" placeholder="이름"></div>
+        <div><div class="label">나이</div><input id="nw_age" type="number" placeholder="나이"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">연락처</div><input id="nw_phone" placeholder="010-"></div>
+        <div><div class="label">이탈위험 상태</div><select id="nw_status"><option>정상</option><option>관심</option><option>주의</option><option>위험</option></select></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="addWorker()">+ 추가</button>
+    </div>
+    <div class="card"><h3>요양보호사 목록 (${workers.length}명)</h3>
+      ${workers.length?workers.map(w=>`<div class="li" onclick="go('mworker_edit',{id:'${w.id}'})"><div class="av"></div><div class="ln"><b>${esc(w.name)} · ${w.age??'-'}세</b><span>${esc(w.phone||'연락처 없음')}</span></div><span class="pill s-${w.attrition_status}">${w.attrition_status}</span></div>`).join(''):'<div class="empty">등록된 요양보호사 없음</div>'}
+    </div>`);
+}
+async function addWorker(){
+  const name=$('nw_name').value.trim();
+  if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  const{error}=await db.from('care_careworkers').insert({name,age:$('nw_age').value||null,phone:$('nw_phone').value,attrition_status:$('nw_status').value});
+  load(false);
+  if(error){toast('추가 오류: '+error.message,true);return;}
+  toast('요양보호사 추가됨: '+name);go('mworker',{},false);
+}
+async function viewWorkerEdit(){
+  const id=S.params.id;if(!id)return go('mworker',{},false);
+  const arr=await q('care_careworkers',{eq:{id}});const w=arr[0];if(!w)return go('mworker',{},false);
+  const so=s=>`<option ${w.attrition_status===s?'selected':''}>${s}</option>`;
+  return shell(hd('+','요양보호사 수정')+`
+    <div class="card">
+      <div class="row">
+        <div><div class="label">이름</div><input id="ew_name" value="${esc(w.name)}"></div>
+        <div><div class="label">나이</div><input id="ew_age" type="number" value="${w.age??''}"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">연락처</div><input id="ew_phone" value="${esc(w.phone||'')}"></div>
+        <div><div class="label">이탈위험 상태</div><select id="ew_status">${['정상','관심','주의','위험'].map(so).join('')}</select></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="updateWorker('${id}')">저장</button>
+      <button class="btn ghost block" style="margin-top:8px;color:#b91c1c;border-color:#fecaca" onclick="deleteWorker('${id}')">삭제</button>
+    </div>`);
+}
+async function updateWorker(id){
+  const name=$('ew_name').value.trim();if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  await db.from('care_careworkers').update({name,age:$('ew_age').value||null,phone:$('ew_phone').value,attrition_status:$('ew_status').value}).eq('id',id);
+  load(false);toast('수정됨');go('mworker',{},false);
+}
+async function deleteWorker(id){
+  if(!confirm('이 요양보호사를 삭제할까요? 담당 수급자·사건의 연결은 해제됩니다.'))return;
+  load(true);await db.from('care_careworkers').delete().eq('id',id);load(false);
+  toast('삭제됨');go('mworker',{},false);
+}
+
+/* ---------- 관리: 수급자 ---------- */
+async function viewManageRecipients(){
+  const[recip,workers]=await Promise.all([q('care_recipients',{order:'created_at'}),q('care_careworkers',{order:'name'})]);
+  const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  const opt=workers.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
+  return shell(hd('+','수급자 관리')+`
+    <div class="card"><h3>새 수급자 추가</h3>
+      <div class="row">
+        <div><div class="label">이름</div><input id="nr_name" placeholder="이름"></div>
+        <div><div class="label">나이</div><input id="nr_age" type="number" placeholder="나이"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">담당 요양보호사</div><select id="nr_worker"><option value="">미지정</option>${opt}</select></div>
+        <div><div class="label">위험 상태</div><select id="nr_status"><option>정상</option><option>주의</option><option>위험</option><option>조치중</option><option>조치완료</option></select></div>
+      </div>
+      <div class="row">
+        <div><div class="label">보호자</div><input id="nr_gname" placeholder="보호자 이름"></div>
+        <div><div class="label">관계</div><input id="nr_grel" placeholder="자녀/배우자 등"></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="addRecipient()">+ 추가</button>
+    </div>
+    <div class="card"><h3>수급자 목록 (${recip.length}명)</h3>
+      ${recip.length?recip.map(r=>`<div class="li" onclick="go('mrecipient_edit',{id:'${r.id}'})"><div class="av"></div><div class="ln"><b>${esc(r.name)} · ${r.age??'-'}세</b><span>담당 ${esc(wmap[r.careworker_id]||'미지정')}</span></div><span class="pill s-${r.risk_status}">${r.risk_status}</span></div>`).join(''):'<div class="empty">등록된 수급자 없음</div>'}
+    </div>`);
+}
+async function addRecipient(){
+  const name=$('nr_name').value.trim();
+  if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  const{error}=await db.from('care_recipients').insert({name,age:$('nr_age').value||null,careworker_id:$('nr_worker').value||null,risk_status:$('nr_status').value,guardian_name:$('nr_gname').value,guardian_relation:$('nr_grel').value});
+  load(false);
+  if(error){toast('추가 오류: '+error.message,true);return;}
+  toast('수급자 추가됨: '+name);go('mrecipient',{},false);
+}
+async function viewRecipientEdit(){
+  const id=S.params.id;if(!id)return go('mrecipient',{},false);
+  const[arr,workers]=await Promise.all([q('care_recipients',{eq:{id}}),q('care_careworkers',{order:'name'})]);
+  const r=arr[0];if(!r)return go('mrecipient',{},false);
+  const opt=workers.map(w=>`<option value="${w.id}" ${r.careworker_id===w.id?'selected':''}>${esc(w.name)}</option>`).join('');
+  const so=s=>`<option ${r.risk_status===s?'selected':''}>${s}</option>`;
+  return shell(hd('+','수급자 수정')+`
+    <div class="card">
+      <div class="row">
+        <div><div class="label">이름</div><input id="er_name" value="${esc(r.name)}"></div>
+        <div><div class="label">나이</div><input id="er_age" type="number" value="${r.age??''}"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">담당 요양보호사</div><select id="er_worker"><option value="">미지정</option>${opt}</select></div>
+        <div><div class="label">위험 상태</div><select id="er_status">${['정상','주의','위험','조치중','조치완료'].map(so).join('')}</select></div>
+      </div>
+      <div class="row">
+        <div><div class="label">보호자</div><input id="er_gname" value="${esc(r.guardian_name||'')}"></div>
+        <div><div class="label">관계</div><input id="er_grel" value="${esc(r.guardian_relation||'')}"></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="updateRecipient('${id}')">저장</button>
+      <button class="btn ghost block" style="margin-top:8px;color:#b91c1c;border-color:#fecaca" onclick="deleteRecipient('${id}')">삭제</button>
+    </div>`);
+}
+async function updateRecipient(id){
+  const name=$('er_name').value.trim();if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  await db.from('care_recipients').update({name,age:$('er_age').value||null,careworker_id:$('er_worker').value||null,risk_status:$('er_status').value,guardian_name:$('er_gname').value,guardian_relation:$('er_grel').value}).eq('id',id);
+  load(false);toast('수정됨');go('mrecipient',{},false);
+}
+async function deleteRecipient(id){
+  if(!confirm('이 수급자를 삭제할까요? 관련 사건·조치의 연결은 해제됩니다.'))return;
+  load(true);await db.from('care_recipients').delete().eq('id',id);load(false);
+  toast('삭제됨');go('mrecipient',{},false);
+}
+
 /* ---------- ROUTER ---------- */
-const VIEWS={dash:viewDash,incident:viewIncident,risk:viewRisk,riskcard:viewRiskCard,action:viewAction,sub:viewSub,subdetail:viewSubDetail,scope:viewScope,report:viewReport,worker:viewWorker,workercard:viewWorkerCard};
+const VIEWS={dash:viewDash,incident:viewIncident,risk:viewRisk,riskcard:viewRiskCard,action:viewAction,sub:viewSub,subdetail:viewSubDetail,scope:viewScope,report:viewReport,worker:viewWorker,workercard:viewWorkerCard,mworker:viewManageWorkers,mworker_edit:viewWorkerEdit,mrecipient:viewManageRecipients,mrecipient_edit:viewRecipientEdit};
 async function render(){
   if(!S.user){renderLogin();return;}
   const fn=VIEWS[S.route]||viewDash;
