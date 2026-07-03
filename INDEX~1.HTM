@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>요양센터 위험관리 MVP</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1f2328;--muted:#6b7280;--line:#e3e6ea;--line2:#eef1f4;--bg:#eceef1;
+    --paper:#fff;--brand:#2563eb;--brand-d:#1d4ed8;--soft:#f6f8fa;--soft2:#f0f4ff;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:-apple-system,"Segoe UI","Malgun Gothic",sans-serif;color:var(--ink);}
+  .app{display:flex;min-height:100vh;}
+  .rail{width:212px;flex:none;background:#fff;border-right:1px solid var(--line);padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto;}
+  .rail h1{font-size:13px;margin:0 0 2px;}
+  .rail .sub{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
+  .navsec{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;}
+  .navitem{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;font-size:12.5px;cursor:pointer;color:#374151;}
+  .navitem:hover{background:var(--soft);}
+  .navitem.active{background:var(--soft2);color:var(--brand-d);font-weight:600;}
+  .navitem .n{font-size:10px;width:18px;height:18px;border-radius:5px;background:#e5e7eb;color:#4b5563;display:flex;align-items:center;justify-content:center;flex:none;font-weight:700;}
+  .navitem.active .n{background:var(--brand);color:#fff;}
+  .me{margin-top:18px;border-top:1px solid var(--line);padding-top:12px;font-size:11.5px;color:var(--muted);}
+  .me b{color:var(--ink);}
+  .logout{margin-top:8px;font-size:11.5px;color:var(--brand);cursor:pointer;}
+
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;padding:24px 20px 70px;}
+  .wrap{width:100%;max-width:880px;}
+  .pagehd{display:flex;align-items:center;gap:10px;margin:2px 0 16px;}
+  .pagehd .num{font-size:11px;font-weight:700;background:var(--brand);color:#fff;border-radius:6px;padding:3px 8px;}
+  .pagehd h2{font-size:18px;margin:0;}
+  .pagehd .who{margin-left:auto;font-size:11.5px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 11px;}
+  .back{font-size:12.5px;color:var(--brand);cursor:pointer;margin-bottom:8px;display:inline-block;}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
+  .card h3{font-size:13px;margin:0 0 10px;color:#374151;}
+  .label{font-size:11.5px;color:var(--muted);margin:11px 0 5px;}
+  input,select,textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13px;font-family:inherit;color:#222;background:#fff;}
+  textarea{min-height:64px;resize:vertical;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;}
+  .row>*{flex:1;min-width:120px;}
+  .btn{background:var(--brand);color:#fff;border:0;border-radius:10px;padding:11px 14px;font-size:13.5px;font-weight:600;cursor:pointer;}
+  .btn:hover{background:var(--brand-d);}
+  .btn.ghost{background:#fff;color:#374151;border:1px solid var(--line);}
+  .btn.sm{padding:8px 11px;font-size:12px;}
+  .btn.block{width:100%;}
+  .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:6px;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{font-size:12.5px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;user-select:none;}
+  .chip.on{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;}
+  @media(max-width:680px){.grid4{grid-template-columns:1fr 1fr;}.grid3{grid-template-columns:1fr 1fr;}}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;cursor:pointer;transition:.12s;}
+  .stat:hover{border-color:#c7d2fe;background:var(--soft2);}
+  .stat .k{font-size:11.5px;color:var(--muted);}
+  .stat .v{font-size:26px;font-weight:700;margin-top:4px;line-height:1;}
+  .stat .v small{font-size:13px;font-weight:500;color:var(--muted);}
+  .li{display:flex;align-items:center;gap:11px;padding:11px 4px;border-bottom:1px solid var(--line2);font-size:13px;cursor:pointer;}
+  .li:last-child{border-bottom:0;}
+  .li:hover{background:var(--soft2);}
+  .av{width:26px;height:26px;border-radius:50%;background:#e5e7eb;flex:none;}
+  .ln{flex:1;}.ln b{font-weight:600;}.ln span{display:block;color:var(--muted);font-size:11.5px;margin-top:1px;}
+  .pill{font-size:11px;border-radius:20px;padding:3px 10px;font-weight:600;white-space:nowrap;}
+  .s-정상,.s-연결완료,.s-확인완료,.s-조치완료{background:#dcfce7;color:#15803d;}
+  .s-주의,.s-관심,.s-전달함,.s-후보확인,.s-조치중{background:#fef3c7;color:#b45309;}
+  .s-위험,.s-불발,.s-미안내{background:#fee2e2;color:#b91c1c;}
+  .s-요청됨,.s-신규{background:#eef2ff;color:#4338ca;}
+  .sev-높음,.sev-긴급{background:#fee2e2;color:#b91c1c;}
+  .sev-보통{background:#fef3c7;color:#b45309;}
+  .sev-낮음{background:#f1f5f9;color:#475569;}
+  .kv{display:flex;font-size:13px;border-bottom:1px solid var(--line2);}
+  .kv:last-child{border-bottom:0;}
+  .kk{width:120px;flex:none;background:var(--soft);color:var(--muted);padding:9px 11px;font-size:12px;}
+  .vv{padding:9px 11px;flex:1;}
+  .hint{font-size:11.5px;color:#9aa3af;margin-top:6px;}
+  .empty{text-align:center;color:#9aa3af;font-size:12.5px;padding:18px;}
+  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;width:100%;}
+  .loginbox{width:340px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 24px;box-shadow:0 12px 36px rgba(20,30,50,.1);}
+  .brandmark{width:54px;height:54px;border-radius:15px;background:linear-gradient(135deg,#2563eb,#1d4ed8);margin:6px auto 12px;}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;font-size:13px;padding:11px 20px;border-radius:24px;opacity:0;transition:.25s;pointer-events:none;z-index:60;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.err{background:#b91c1c;}
+  .badge{font-size:9px;margin-left:auto;color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:0 6px;}
+  .loading{position:fixed;inset:0;background:rgba(255,255,255,.6);display:none;align-items:center;justify-content:center;z-index:55;font-size:13px;color:var(--muted);}
+  .loading.on{display:flex;}
+  @media print{
+    .rail,.btnrow,.back,.logout,button{display:none !important;}
+    body{background:#fff;}
+    .stage{padding:0;}
+    .card{border:1px solid #ddd;break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+<div class="loading" id="loading">불러오는 중…</div>
+
+<script>
+const SUPABASE_URL='https://jhurootuorysargyzjda.supabase.co';
+const SUPABASE_KEY='sb_publishable_9IUHkvkUqfheR6bL3TKrXw_7mk997jK';
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const PROBLEMS=['폭언','성희롱','업무외요구','보호자 과도','신체 부담','이동 부담','당일 취소','기타'];
+const SEVERITIES=['낮음','보통','높음','긴급'];
+const ACTIONTYPES=['보호자 상담','업무범위 재안내','보호사 상담','배정 변경 검토','대체근무 제안','서비스 조정'];
+const NAV=[
+  {sec:'1차 MVP',items:[['dash','2','대시보드'],['incident','3','사건 기록'],['risk','4','위험가구'],['action','5','조치 기록'],['report','8','월간 리포트']]},
+  {sec:'2차 MVP',items:[['sub','6','대체근무'],['scope','7','업무범위'],['worker','9','요양보호사']]},
+  {sec:'관리',items:[['mworker','+','요양보호사 관리'],['mrecipient','+','수급자 관리']]},
+];
+
+let S={user:null,route:'dash',params:{},hist:[]};
+const $=id=>document.getElementById(id);
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fdate=d=>d?String(d).slice(0,10):'-';
+const todayStr=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());};
+const monthStr=()=>todayStr().slice(0,7);
+function toast(m,err){const e=$('toast');e.textContent=m;e.className='toast show'+(err?' err':'');clearTimeout(window._t);window._t=setTimeout(()=>e.className='toast',1800);}
+function load(on){$('loading').className='loading'+(on?' on':'');}
+function go(route,params,push=true){if(push)S.hist.push({route:S.route,params:S.params});S.route=route;S.params=params||{};render();}
+function back(){const p=S.hist.pop();if(p){S.route=p.route;S.params=p.params;render();}else{go('dash',{},false);}}
+
+/* ---------- DATA ---------- */
+async function q(table,opts={}){let b=db.from(table).select(opts.select||'*');if(opts.eq)for(const[k,v]of Object.entries(opts.eq))b=b.eq(k,v);if(opts.order)b=b.order(opts.order,{ascending:opts.asc!==false});const{data,error}=await b;if(error){toast('읽기 오류: '+error.message,true);return[];}return data||[];}
+
+/* ---------- LOGIN ---------- */
+function renderLogin(){
+  $('root').innerHTML=`<div class="login"><div class="loginbox">
+    <div style="text-align:center"><div class="brandmark"></div>
+      <div style="font-size:15px;font-weight:700">요양센터 위험관리 시스템</div>
+      <div class="hint">센터장 · 사회복지사 전용 (파일럿)</div></div>
+    <div class="label">아이디</div><input id="u" autocomplete="off">
+    <div class="label">비밀번호</div><input id="p" type="password">
+    <div style="height:16px"></div>
+    <button class="btn block" onclick="doLogin()">로그인</button>
+  </div></div>`;
+  $('p').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+}
+async function doLogin(){
+  const u=$('u').value.trim(),p=$('p').value;
+  load(true);
+  const{data,error}=await db.rpc('care_login',{p_username:u,p_password:p});
+  load(false);
+  if(error){toast('로그인 오류: '+error.message,true);return;}
+  if(!data){toast('아이디/비밀번호를 확인하세요',true);return;}
+  S.user=data;S.route='dash';S.hist=[];render();
+}
+function logout(){S.user=null;S.hist=[];renderLogin();}
+
+/* ---------- SHELL ---------- */
+function shell(inner){
+  const roleName=S.user.role==='center_head'?'센터장':'사회복지사';
+  let nav='';
+  NAV.forEach(g=>{nav+=`<div class="navsec">${g.sec}</div>`;
+    g.items.forEach(([r,n,t])=>{nav+=`<div class="navitem ${S.route===r?'active':''}" onclick="go('${r}',{})"><span class="n">${n}</span>${t}</div>`;});});
+  return `<div class="app">
+    <aside class="rail">
+      <h1>요양센터 관리 MVP</h1><div class="sub">검증 5문제 · 파일럿</div>
+      ${nav}
+      <div class="me">접속: <b>${esc(S.user.name)}</b><br>${roleName}<div class="logout" onclick="logout()">로그아웃</div></div>
+    </aside>
+    <main class="stage"><div class="wrap">${inner}</div></main>
+  </div>`;
+}
+function hd(num,title){const roleName=S.user.role==='center_head'?'센터장':'사회복지사';
+  const b=S.hist.length?`<span class="back" onclick="back()">← 뒤로</span>`:'';
+  return `${b}<div class="pagehd"><span class="num">${num}</span><h2>${title}</h2><span class="who">${esc(S.user.name)} · ${roleName}</span></div>`;}
+
+/* ---------- 2 DASHBOARD ---------- */
+async function viewDash(){
+  const[recip,inc,subs,workers]=await Promise.all([
+    q('care_recipients',{order:'created_at'}),
+    q('care_incidents',{order:'occurred_on',asc:false}),
+    q('care_substitutes',{order:'created_at',asc:false}),
+    q('care_careworkers',{order:'created_at'}),
+  ]);
+  const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  const rmap=Object.fromEntries(recip.map(r=>[r.id,r.name]));
+  const today=todayStr();
+  const risky=recip.filter(r=>['주의','위험','조치중'].includes(r.risk_status));
+  const unresolved=inc.filter(i=>!i.resolved);
+  const todayCancel=inc.filter(i=>i.problem_type==='당일 취소'&&fdate(i.occurred_on)===today);
+  const needSub=subs.filter(s=>['요청됨','후보확인'].includes(s.status));
+  const atRisk=workers.filter(w=>['주의','위험'].includes(w.attrition_status));
+  const liR=r=>`<div class="li" onclick="go('riskcard',{id:'${r.id}'})"><div class="av"></div><div class="ln"><b>${esc(r.name)} 수급자</b><span>담당 ${esc(wmap[r.careworker_id]||'-')}</span></div><span class="pill s-${r.risk_status}">${r.risk_status}</span></div>`;
+  const liI=i=>`<div class="li" onclick="go('riskcard',{id:'${i.recipient_id||''}'})"><div class="ln"><b>${esc(wmap[i.careworker_id]||'-')} · ${esc(i.problem_type)}</b><span>${esc(rmap[i.recipient_id]||'대상 미지정')} · ${fdate(i.occurred_on)}</span></div><span class="pill sev-${i.severity}">${i.severity}</span></div>`;
+  return shell(hd('2','대시보드')+`
+    <div class="grid4">
+      <div class="stat" onclick="go('risk',{})"><div class="k">위험가구 (현재)</div><div class="v">${risky.length}</div></div>
+      <div class="stat" onclick="go('worker',{})"><div class="k">미처리 고충</div><div class="v">${unresolved.length}</div></div>
+      <div class="stat" onclick="go('sub',{})"><div class="k">오늘 취소</div><div class="v">${todayCancel.length}</div></div>
+      <div class="stat" onclick="go('sub',{})"><div class="k">대체근무 필요</div><div class="v">${needSub.length}</div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="stat" style="cursor:default" onclick="go('worker',{})"><div class="k">이탈위험 요양보호사</div><div class="v">${atRisk.length} <small>명</small></div></div></div>
+    <div class="card"><h3>위험가구 (주의·위험·조치중)</h3>${risky.length?risky.map(liR).join(''):'<div class="empty">해당 가구 없음</div>'}</div>
+    <div class="card"><h3>최근 접수 고충</h3>${unresolved.length?unresolved.slice(0,6).map(liI).join(''):'<div class="empty">미처리 고충 없음</div>'}</div>
+    <div class="btnrow">
+      <button class="btn" onclick="go('incident',{})">+ 사건 기록</button>
+      <button class="btn ghost" onclick="go('report',{})">월간 리포트 보기</button>
+    </div>`);
+}
+
+/* ---------- 3 INCIDENT ---------- */
+async function viewIncident(){
+  const[workers,recip]=await Promise.all([q('care_careworkers',{order:'name'}),q('care_recipients',{order:'name'})]);
+  const opt=(arr,sel)=>arr.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${esc(x.name)}</option>`).join('');
+  const preR=S.params.recipientId||'';
+  return shell(hd('3','사건 기록')+`
+    <div class="card">
+      <div class="row">
+        <div><div class="label">요양보호사</div><select id="i_w">${opt(workers)}</select></div>
+        <div><div class="label">수급자</div><select id="i_r"><option value="">(대상 미지정)</option>${opt(recip,preR)}</select></div>
+      </div>
+      <div class="row">
+        <div><div class="label">발생일</div><input id="i_date" type="date" value="${todayStr()}"></div>
+        <div><div class="label">담당자</div><input id="i_handler" value="${esc(S.user.name)}"></div>
+      </div>
+      <div class="label">문제 유형</div><div class="chips" id="i_problem">${PROBLEMS.map((p,i)=>`<span class="chip ${i===2?'on':''}" data-v="${p}" onclick="pick(this,'i_problem')">${p}</span>`).join('')}</div>
+      <div class="label">심각도</div><div class="chips" id="i_sev">${SEVERITIES.map((s,i)=>`<span class="chip ${i===1?'on':''}" data-v="${s}" onclick="pick(this,'i_sev')">${s}</span>`).join('')}</div>
+      <div class="hint">높음 = 센터장 확인 필요 · 긴급 = 배정변경·중단 검토</div>
+      <div class="label">사건 내용</div><textarea id="i_content" placeholder="발생 상황을 서술하세요"></textarea>
+      <div class="row">
+        <div><div class="label">요청 조치</div><input id="i_req" placeholder="예: 보호자 상담"></div>
+        <div><div class="label">다음 확인일</div><input id="i_next" type="date"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">공백시간(h) — ‘당일 취소’ 선택 시</div><input id="i_gap" type="number" value="4" min="0" max="24"></div>
+        <div></div>
+      </div>
+      <div style="height:14px"></div>
+      <button class="btn block" onclick="saveIncident()">저장</button>
+      <div class="hint">저장 시 위험가구 상태가 자동 갱신되고, ‘당일 취소’면 대체근무 요청이 생성됩니다.</div>
+    </div>`);
+}
+function pick(el,group){const single=group==='i_sev';if(single){document.querySelectorAll('#'+group+' .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');}else{el.classList.toggle('on');}}
+function picked(group){return[...document.querySelectorAll('#'+group+' .chip.on')].map(c=>c.dataset.v);}
+async function saveIncident(){
+  const wid=$('i_w').value,rid=$('i_r').value||null;
+  const probs=picked('i_problem'),sev=picked('i_sev')[0]||'보통';
+  if(!probs.length){toast('문제 유형을 선택하세요',true);return;}
+  load(true);
+  const rows=probs.map(pt=>({careworker_id:wid,recipient_id:rid,occurred_on:$('i_date').value,problem_type:pt,severity:sev,content:$('i_content').value,requested_action:$('i_req').value,handler:$('i_handler').value,next_check_date:$('i_next').value||null,resolved:false}));
+  const{error}=await db.from('care_incidents').insert(rows);
+  if(error){load(false);toast('저장 오류: '+error.message,true);return;}
+  // 위험가구 상태 자동 갱신
+  if(rid){
+    const{count}=await db.from('care_incidents').select('*',{count:'exact',head:true}).eq('recipient_id',rid);
+    const newStatus=(count||0)>=3?'위험':'주의';
+    await db.from('care_recipients').update({risk_status:newStatus,next_check_date:$('i_next').value||null}).eq('id',rid);
+  }
+  // 이탈위험 갱신 (고충 누적)
+  const{count:wc}=await db.from('care_incidents').select('*',{count:'exact',head:true}).eq('careworker_id',wid).eq('resolved',false);
+  if((wc||0)>=3)await db.from('care_careworkers').update({attrition_status:'위험'}).eq('id',wid);
+  else if((wc||0)>=2)await db.from('care_careworkers').update({attrition_status:'주의'}).eq('id',wid);
+  load(false);
+  if(probs.includes('당일 취소')&&rid){
+    const gap=Math.max(0,Number($('i_gap')&&$('i_gap').value)||4);
+    const{data:sub}=await db.from('care_substitutes').insert({recipient_id:rid,cancel_reason:'당일 취소',affected_careworker_id:wid,gap_hours:gap,status:'요청됨'}).select().maybeSingle();
+    toast('저장됨 · 당일 취소 → 대체근무 요청 생성');
+    go('subdetail',{id:sub?sub.id:''});return;
+  }
+  toast('저장됨 · 위험가구에 반영');
+  if(rid)go('riskcard',{id:rid});else go('dash',{});
+}
+
+/* ---------- 4 RISK LIST ---------- */
+async function viewRisk(){
+  const[recip,workers]=await Promise.all([q('care_recipients',{order:'created_at'}),q('care_careworkers',{})]);
+  const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  const order={'위험':0,'조치중':1,'주의':2,'조치완료':3,'정상':4};
+  recip.sort((a,b)=>(order[a.risk_status]??9)-(order[b.risk_status]??9));
+  return shell(hd('4','위험가구')+`<div class="card"><h3>전체 수급자 (위험 순)</h3>
+    ${recip.map(r=>`<div class="li" onclick="go('riskcard',{id:'${r.id}'})"><div class="av"></div><div class="ln"><b>${esc(r.name)} · ${r.age??'-'}세</b><span>담당 ${esc(wmap[r.careworker_id]||'-')} · 업무범위 ${r.scope_status}</span></div><span class="pill s-${r.risk_status}">${r.risk_status}</span></div>`).join('')}
+  </div>`);
+}
+/* ---------- 4b RISK CARD ---------- */
+async function viewRiskCard(){
+  const id=S.params.id;
+  if(!id)return go('risk',{},false);
+  const[rArr,workers,inc,acts,scopes]=await Promise.all([
+    q('care_recipients',{eq:{id}}),q('care_careworkers',{}),
+    q('care_incidents',{eq:{recipient_id:id},order:'occurred_on',asc:false}),
+    q('care_actions',{eq:{recipient_id:id},order:'action_date',asc:false}),
+    q('care_scope_guides',{eq:{recipient_id:id}}),
+  ]);
+  const r=rArr[0];if(!r)return go('risk',{},false);
+  const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  const scope=scopes[0];
+  const typeCount={};inc.forEach(i=>typeCount[i.problem_type]=(typeCount[i.problem_type]||0)+1);
+  const repeated=Object.entries(typeCount).filter(([,c])=>c>=1).sort((a,b)=>b[1]-a[1]);
+  return shell(hd('4','위험가구 카드')+`
+    <div class="card">
+      <div class="kv"><span class="kk">수급자</span><span class="vv">${esc(r.name)} · ${r.age??'-'}세</span></div>
+      <div class="kv"><span class="kk">담당 보호사</span><span class="vv">${esc(wmap[r.careworker_id]||'-')}</span></div>
+      <div class="kv"><span class="kk">보호자</span><span class="vv">${esc(r.guardian_name||'-')} (${esc(r.guardian_relation||'-')})</span></div>
+      <div class="kv"><span class="kk">위험 상태</span><span class="vv"><span class="pill s-${r.risk_status}">${r.risk_status}</span></span></div>
+      <div class="kv"><span class="kk">업무범위 안내</span><span class="vv"><span class="pill s-${r.scope_status}">${r.scope_status}</span></span></div>
+      <div class="kv"><span class="kk">다음 확인일</span><span class="vv">${fdate(r.next_check_date)}</span></div>
+    </div>
+    <div class="card"><h3>반복 문제 유형</h3><div class="chips">${repeated.length?repeated.map(([t,c])=>`<span class="chip on">${esc(t)} ×${c}</span>`).join(''):'<span class="hint">사건 없음</span>'}</div></div>
+    <div class="card"><h3>최근 사건 이력</h3>${inc.length?inc.map(i=>`<div class="li" style="cursor:default"><div class="ln"><b>${fdate(i.occurred_on)} · ${esc(i.problem_type)}</b><span>${esc(i.content||'')}</span></div><span class="pill sev-${i.severity}">${i.severity}</span></div>`).join(''):'<div class="empty">사건 없음</div>'}</div>
+    <div class="card"><h3>조치 내역</h3>${acts.length?acts.map(a=>`<div class="li" style="cursor:default"><div class="ln"><b>${fdate(a.action_date)} · ${esc(a.action_type)}</b><span>${esc(a.content||'')}</span></div></div>`).join(''):'<div class="empty">조치 없음</div>'}</div>
+    <div class="btnrow">
+      <button class="btn" onclick="go('incident',{recipientId:'${id}'})">사건 추가</button>
+      <button class="btn" onclick="go('action',{recipientId:'${id}'})">조치 기록</button>
+      <button class="btn ghost" onclick="go('scope',{recipientId:'${id}'})">업무범위 재안내</button>
+      <button class="btn ghost" onclick="setRisk('${id}','조치완료')">조치 완료</button>
+    </div>`);
+}
+async function setRisk(id,status){load(true);await db.from('care_recipients').update({risk_status:status}).eq('id',id);load(false);toast('상태 변경: '+status);go('riskcard',{id},false);}
+
+/* ---------- 5 ACTION ---------- */
+async function viewAction(){
+  const recip=await q('care_recipients',{order:'name'});
+  const opt=recip.map(r=>`<option value="${r.id}" ${S.params.recipientId===r.id?'selected':''}>${esc(r.name)} 가구</option>`).join('');
+  return shell(hd('5','조치 기록')+`
+    <div class="card">
+      <div class="label">조치 유형</div><div class="chips" id="a_type">${ACTIONTYPES.map((t,i)=>`<span class="chip ${i===0?'on':''}" data-v="${t}" onclick="pick(this,'a_type_single')">${t}</span>`).join('')}</div>
+      <div class="row">
+        <div><div class="label">조치 대상</div><select id="a_r">${opt}</select></div>
+        <div><div class="label">조치일</div><input id="a_date" type="date" value="${todayStr()}"></div>
+      </div>
+      <div class="label">조치 내용</div><textarea id="a_content" placeholder="센터가 무엇을 했는지 기록"></textarea>
+      <div class="row">
+        <div><div class="label">담당자</div><input id="a_handler" value="${esc(S.user.name)}"></div>
+        <div><div class="label">후속 확인일</div><input id="a_follow" type="date"></div>
+      </div>
+      <div style="height:14px"></div>
+      <button class="btn block" onclick="saveAction()">저장</button>
+      <div class="hint">저장 시 해당 가구가 ‘조치중’으로 바뀌고 월간 리포트 조치 완료율에 반영됩니다.</div>
+    </div>`);
+}
+async function saveAction(){
+  const type=document.querySelector('#a_type .chip.on');
+  if(!type){toast('조치 유형을 선택하세요',true);return;}
+  const rid=$('a_r').value;
+  load(true);
+  const{error}=await db.from('care_actions').insert({recipient_id:rid,action_type:type.dataset.v,target:null,content:$('a_content').value,action_date:$('a_date').value,handler:$('a_handler').value,followup_date:$('a_follow').value||null});
+  if(error){load(false);toast('저장 오류: '+error.message,true);return;}
+  await db.from('care_recipients').update({risk_status:'조치중'}).eq('id',rid);
+  load(false);toast('조치 저장됨');go('riskcard',{id:rid});
+}
+
+/* ---------- 6 SUBSTITUTE LIST ---------- */
+async function viewSub(){
+  const[subs,recip,workers]=await Promise.all([q('care_substitutes',{order:'created_at',asc:false}),q('care_recipients',{}),q('care_careworkers',{})]);
+  const rmap=Object.fromEntries(recip.map(r=>[r.id,r.name]));const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  return shell(hd('6','대체근무 요청')+`<div class="card"><h3>대체근무 요청 목록</h3>
+    ${subs.length?subs.map(s=>`<div class="li" onclick="go('subdetail',{id:'${s.id}'})"><div class="ln"><b>${esc(rmap[s.recipient_id]||'-')} · ${esc(s.cancel_reason||'')}</b><span>영향 ${esc(wmap[s.affected_careworker_id]||'-')} · 공백 ${s.gap_hours??'-'}h</span></div><span class="pill s-${s.status}">${s.status}</span></div>`).join(''):'<div class="empty">대체근무 요청 없음</div>'}
+  </div>`);
+}
+async function viewSubDetail(){
+  const id=S.params.id;if(!id)return go('sub',{},false);
+  const[sArr,recip,workers]=await Promise.all([q('care_substitutes',{eq:{id}}),q('care_recipients',{}),q('care_careworkers',{})]);
+  const s=sArr[0];if(!s)return go('sub',{},false);
+  const rmap=Object.fromEntries(recip.map(r=>[r.id,r.name]));const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  const cands=workers.filter(w=>w.id!==s.affected_careworker_id);
+  return shell(hd('6','대체근무 요청')+`
+    <div class="card">
+      <div class="kv"><span class="kk">취소 수급자</span><span class="vv">${esc(rmap[s.recipient_id]||'-')}</span></div>
+      <div class="kv"><span class="kk">취소 사유</span><span class="vv">${esc(s.cancel_reason||'-')}</span></div>
+      <div class="kv"><span class="kk">영향 보호사</span><span class="vv">${esc(wmap[s.affected_careworker_id]||'-')} (수입 공백)</span></div>
+      <div class="kv"><span class="kk">공백 시간</span><span class="vv">${s.gap_hours??'-'}시간</span></div>
+      <div class="kv"><span class="kk">연결 상태</span><span class="vv"><span class="pill s-${s.status}">${s.status}</span></span></div>
+      <div class="kv"><span class="kk">대체 후보</span><span class="vv">${esc(s.candidate||'미지정')}</span></div>
+    </div>
+    <div class="card"><h3>대체근무 후보 (후보 지정)</h3>${cands.map(w=>`<div class="li" onclick="setCandidate('${id}','${esc(w.name)}')"><div class="av"></div><div class="ln"><b>${esc(w.name)}</b><span>이탈위험 ${w.attrition_status}</span></div><span class="pill ${s.candidate===w.name?'s-후보확인':''}">${s.candidate===w.name?'선택됨':'후보'}</span></div>`).join('')}</div>
+    <div class="btnrow">
+      <button class="btn" onclick="setSub('${id}','연결완료')">연결 완료</button>
+      <button class="btn ghost" onclick="setSub('${id}','불발')">불발 처리</button>
+    </div>`);
+}
+async function setCandidate(id,name){load(true);await db.from('care_substitutes').update({candidate:name,status:'후보확인'}).eq('id',id);load(false);toast('후보 지정: '+name);go('subdetail',{id},false);}
+async function setSub(id,status){load(true);await db.from('care_substitutes').update({status}).eq('id',id);load(false);toast('연결 상태: '+status);go(status==='연결완료'?'dash':'sub',{},false);}
+
+/* ---------- 7 SCOPE ---------- */
+async function viewScope(){
+  const recip=await q('care_recipients',{order:'name'});
+  let rid=S.params.recipientId||(recip[0]&&recip[0].id);
+  const scopes=await q('care_scope_guides',{eq:{recipient_id:rid}});
+  const sc=scopes[0]||{possible_tasks:[],impossible_tasks:[],status:'미안내',reguide_count:0};
+  const opt=recip.map(r=>`<option value="${r.id}" ${rid===r.id?'selected':''}>${esc(r.name)} 가구</option>`).join('');
+  const POS=['식사 보조','개인위생','이동 보조','투약 관리','말벗'];
+  const NEG=['가족 식사 준비','대청소','장보기 심부름','가족 빨래','외부 동행 쇼핑'];
+  return shell(hd('7','업무범위 안내')+`
+    <div class="card">
+      <div class="label">수급자</div><select id="sc_r" onchange="go('scope',{recipientId:this.value})">${opt}</select>
+      <div class="label">가능한 업무</div><div class="chips" id="sc_pos">${POS.map(t=>`<span class="chip ${sc.possible_tasks&&sc.possible_tasks.includes(t)?'on':''}" data-v="${t}" onclick="pick(this,'sc_pos')">${t}</span>`).join('')}</div>
+      <div class="label">불가능한 업무</div><div class="chips" id="sc_neg">${NEG.map(t=>`<span class="chip ${sc.impossible_tasks&&sc.impossible_tasks.includes(t)?'on':''}" data-v="${t}" onclick="pick(this,'sc_neg')">${t}</span>`).join('')}</div>
+      <div class="kv" style="margin-top:14px"><span class="kk">안내 상태</span><span class="vv"><span class="pill s-${sc.status}">${sc.status}</span></span></div>
+      <div class="kv"><span class="kk">재안내 이력</span><span class="vv">${sc.reguide_count||0}회</span></div>
+      <div class="btnrow" style="margin-top:14px">
+        <button class="btn" onclick="saveScope('${rid}','전달함')">보호자 전달</button>
+        <button class="btn ghost" onclick="saveScope('${rid}','확인완료')">확인 완료</button>
+      </div>
+      <div class="hint">확인 완료 시 위험가구 카드의 업무범위 상태가 갱신되고, 업무외요구 사건의 상담 근거로 쓰입니다.</div>
+    </div>`);
+}
+async function saveScope(rid,status){
+  const pos=picked('sc_pos'),neg=picked('sc_neg');
+  load(true);
+  const existing=await q('care_scope_guides',{eq:{recipient_id:rid}});
+  const payload={recipient_id:rid,possible_tasks:pos,impossible_tasks:neg,status,guided_on:new Date().toISOString().slice(0,10)};
+  if(existing[0]){payload.reguide_count=(existing[0].reguide_count||0)+(status==='전달함'?1:0);await db.from('care_scope_guides').update(payload).eq('id',existing[0].id);}
+  else{await db.from('care_scope_guides').insert(payload);}
+  await db.from('care_recipients').update({scope_status:status}).eq('id',rid);
+  load(false);toast('업무범위 '+status);go('riskcard',{id:rid});
+}
+
+/* ---------- 8 REPORT ---------- */
+async function viewReport(){
+  const month=S.params.month||monthStr();
+  const[recip,incAll,subsAll,workers,acts,pilotAll]=await Promise.all([
+    q('care_recipients',{}),q('care_incidents',{}),q('care_substitutes',{}),q('care_careworkers',{}),q('care_actions',{}),q('care_pilot_results',{order:'created_at',asc:false})]);
+  const pilots=pilotAll.filter(p=>p.month===month);
+  const inc=incAll.filter(i=>fdate(i.occurred_on).slice(0,7)===month);
+  const subs=subsAll.filter(s=>fdate(s.created_at).slice(0,7)===month);
+  const riskCnt=recip.filter(r=>['주의','위험','조치중'].includes(r.risk_status)).length;
+  const unresolved=inc.filter(i=>!i.resolved).length;
+  const offwork=inc.filter(i=>i.problem_type==='업무외요구').length;
+  const cancels=inc.filter(i=>i.problem_type==='당일 취소').length;
+  const subDone=subs.filter(s=>s.status==='연결완료').length;
+  const subRate=subs.length?Math.round(subDone/subs.length*100):0;
+  const atRisk=workers.filter(w=>['주의','위험'].includes(w.attrition_status)).length;
+  const resolved=inc.filter(i=>i.resolved).length;
+  const actRate=inc.length?Math.round(resolved/inc.length*100):0;
+  const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  const topRisk=recip.filter(r=>['주의','위험','조치중'].includes(r.risk_status)).slice(0,5);
+  const topWorker=workers.filter(w=>['주의','위험'].includes(w.attrition_status)).slice(0,5);
+  const incByR={};inc.forEach(i=>{if(i.recipient_id)incByR[i.recipient_id]=(incByR[i.recipient_id]||0)+1;});
+  window._rep={month,riskCnt,unresolved,offwork,cancels,subRate,actRate,atRisk};
+  return shell(hd('8','월간 이탈위험 리포트')+`
+    <div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+      <span class="label" style="margin:0">대상 월</span>
+      <input type="month" value="${month}" max="${monthStr()}" onchange="go('report',{month:this.value},false)" style="width:auto">
+      <span class="hint" style="margin:0">사건·대체근무는 해당 월 기준, 위험가구·이탈위험 수는 현재 상태 기준</span>
+    </div>
+    <div class="grid3">
+      <div class="stat" style="cursor:default"><div class="k">위험가구 수</div><div class="v">${riskCnt}</div></div>
+      <div class="stat" style="cursor:default"><div class="k">미처리 고충</div><div class="v">${unresolved}</div></div>
+      <div class="stat" style="cursor:default"><div class="k">반복 업무외요구</div><div class="v">${offwork}</div></div>
+      <div class="stat" style="cursor:default"><div class="k">당일 취소</div><div class="v">${cancels}</div></div>
+      <div class="stat" style="cursor:default"><div class="k">대체근무 연결률</div><div class="v">${subRate}<small>%</small></div></div>
+      <div class="stat" style="cursor:default"><div class="k">조치 완료율</div><div class="v">${actRate}<small>%</small></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="stat" style="cursor:default"><div class="k">이탈위험 요양보호사</div><div class="v">${atRisk} <small>명</small></div></div></div>
+    <div class="card"><h3>위험가구 상위 5</h3>${topRisk.length?topRisk.map(r=>`<div class="li" onclick="go('riskcard',{id:'${r.id}'})"><div class="ln"><b>${esc(r.name)} 가구</b><span>사건 ${incByR[r.id]||0}건 · 담당 ${esc(wmap[r.careworker_id]||'-')}</span></div><span class="pill s-${r.risk_status}">${r.risk_status}</span></div>`).join(''):'<div class="empty">없음</div>'}</div>
+    <div class="card"><h3>이탈위험 요양보호사 상위 5</h3>${topWorker.length?topWorker.map(w=>`<div class="li" onclick="go('workercard',{id:'${w.id}'})"><div class="ln"><b>${esc(w.name)}</b><span>이탈위험 ${w.attrition_status}</span></div><span class="pill s-${w.attrition_status}">${w.attrition_status}</span></div>`).join(''):'<div class="empty">없음</div>'}</div>
+    <div class="card" style="background:var(--soft2);border-color:#c7d2fe">
+      <h3>센터장 유료 판단</h3>
+      <div class="hint" style="color:#374151;font-size:13px;line-height:1.7">${month} 위험가구 ${riskCnt}곳, 미처리 고충 ${unresolved}건을 기록·조치했고 조치 완료율 ${actRate}%, 대체근무 연결률 ${subRate}%입니다. 이 관리가 <b>월 5~10만원</b>의 가치가 있는지 판단하는 화면입니다.</div>
+      <div class="row" style="margin-top:12px">
+        <div><div class="label">센터장 판단</div><select id="pv_dec"><option>판단 보류</option><option>가치 있음 (유료 의향)</option><option>보통</option><option>가치 없음</option></select></div>
+        <div><div class="label">코멘트</div><input id="pv_note" placeholder="예: 월 5만원이면 쓰겠다"></div>
+      </div>
+      <div class="btnrow" style="margin-top:12px">
+        <button class="btn" onclick="savePilotResult()">파일럿 결과 저장</button>
+        <button class="btn ghost" onclick="copyReport()">요약 복사 (공유)</button>
+        <button class="btn ghost" onclick="window.print()">인쇄 / PDF</button>
+      </div>
+      ${pilots.length?`<div style="margin-top:12px"><div class="label">이 달 저장된 판단 (${pilots.length}건)</div>${pilots.map(p=>`<div class="li" style="cursor:default"><div class="ln"><b>${esc(p.decision||'-')}</b><span>${esc(p.comment||'')} · ${esc(p.saved_by||'')} · ${fdate(p.created_at)}</span></div></div>`).join('')}</div>`:''}
+    </div>`);
+}
+function copyReport(){
+  const r=window._rep;if(!r)return;
+  const t=`[요양센터 위험관리 리포트 ${r.month}]\n위험가구 ${r.riskCnt}곳 · 미처리 고충 ${r.unresolved}건\n업무외요구 ${r.offwork}건 · 당일취소 ${r.cancels}건\n대체근무 연결률 ${r.subRate}% · 조치 완료율 ${r.actRate}%\n이탈위험 요양보호사 ${r.atRisk}명\n${location.origin}`;
+  navigator.clipboard.writeText(t).then(()=>toast('요약 복사됨 — 카톡/문자에 붙여넣으세요'),()=>toast('복사 실패 — 직접 선택해 복사하세요',true));
+}
+async function savePilotResult(){
+  const r=window._rep;if(!r)return;
+  load(true);
+  const{error}=await db.from('care_pilot_results').insert({month:r.month,metrics:r,decision:$('pv_dec').value,comment:$('pv_note').value,saved_by:S.user.name});
+  load(false);
+  if(error){toast('저장 오류: '+error.message,true);return;}
+  toast('파일럿 결과 저장됨 ('+r.month+')');go('report',{month:r.month},false);
+}
+
+/* ---------- 9 WORKER ---------- */
+async function viewWorker(){
+  const[workers,recip,inc]=await Promise.all([q('care_careworkers',{order:'created_at'}),q('care_recipients',{}),q('care_incidents',{})]);
+  const order={'위험':0,'주의':1,'관심':2,'정상':3};
+  workers.sort((a,b)=>(order[a.attrition_status]??9)-(order[b.attrition_status]??9));
+  const cntR={};recip.forEach(r=>{if(r.careworker_id)cntR[r.careworker_id]=(cntR[r.careworker_id]||0)+1;});
+  return shell(hd('9','요양보호사')+`<div class="card"><h3>요양보호사 (이탈위험 순)</h3>
+    ${workers.map(w=>`<div class="li" onclick="go('workercard',{id:'${w.id}'})"><div class="av"></div><div class="ln"><b>${esc(w.name)} · ${w.age??'-'}세</b><span>담당 수급자 ${cntR[w.id]||0}명</span></div><span class="pill s-${w.attrition_status}">${w.attrition_status}</span></div>`).join('')}
+  </div>`);
+}
+async function viewWorkerCard(){
+  const id=S.params.id;if(!id)return go('worker',{},false);
+  const[wArr,recip,inc,subs,acts]=await Promise.all([
+    q('care_careworkers',{eq:{id}}),q('care_recipients',{eq:{careworker_id:id}}),
+    q('care_incidents',{eq:{careworker_id:id},order:'occurred_on',asc:false}),
+    q('care_substitutes',{eq:{affected_careworker_id:id},order:'created_at',asc:false}),
+    q('care_actions',{eq:{careworker_id:id},order:'action_date',asc:false})]);
+  const w=wArr[0];if(!w)return go('worker',{},false);
+  const riskHouses=recip.filter(r=>['주의','위험','조치중'].includes(r.risk_status)).length;
+  const cancelImpact=subs.length;const gap=subs.reduce((a,s)=>a+(Number(s.gap_hours)||0),0);
+  return shell(hd('9','요양보호사 카드')+`
+    <div class="card">
+      <div class="kv"><span class="kk">이름</span><span class="vv">${esc(w.name)} · ${w.age??'-'}세</span></div>
+      <div class="kv"><span class="kk">담당 수급자</span><span class="vv">${recip.length}명</span></div>
+      <div class="kv"><span class="kk">담당 위험가구</span><span class="vv">${riskHouses}가구</span></div>
+      <div class="kv"><span class="kk">당일 취소 영향</span><span class="vv">${cancelImpact}회 · ${gap}시간 공백</span></div>
+      <div class="kv"><span class="kk">이탈위험 상태</span><span class="vv"><span class="pill s-${w.attrition_status}">${w.attrition_status}</span></span></div>
+    </div>
+    <div class="card"><h3>최근 고충</h3>${inc.length?inc.slice(0,6).map(i=>`<div class="li" style="cursor:default"><div class="ln"><b>${fdate(i.occurred_on)} · ${esc(i.problem_type)}</b><span>${esc(i.content||'')}</span></div><span class="pill sev-${i.severity}">${i.severity}</span></div>`).join(''):'<div class="empty">고충 없음</div>'}</div>
+    <div class="card"><h3>대체근무 · 상담 이력</h3>
+      ${subs.map(s=>`<div class="li" style="cursor:default"><div class="ln"><b>대체근무 · ${esc(s.cancel_reason||'')}</b><span>${fdate(s.created_at)}</span></div><span class="pill s-${s.status}">${s.status}</span></div>`).join('')}
+      ${acts.map(a=>`<div class="li" style="cursor:default"><div class="ln"><b>상담 · ${esc(a.action_type)}</b><span>${fdate(a.action_date)}</span></div></div>`).join('')}
+      ${!subs.length&&!acts.length?'<div class="empty">이력 없음</div>':''}
+    </div>
+    <div class="btnrow">
+      <button class="btn" onclick="go('action',{})">상담 기록</button>
+      <button class="btn ghost" onclick="setWorker('${id}','관심')">이탈위험 완화(관심)</button>
+    </div>`);
+}
+async function setWorker(id,status){load(true);await db.from('care_careworkers').update({attrition_status:status}).eq('id',id);load(false);toast('이탈위험: '+status);go('workercard',{id},false);}
+
+/* ---------- 관리: 요양보호사 ---------- */
+async function viewManageWorkers(){
+  const workers=await q('care_careworkers',{order:'created_at'});
+  return shell(hd('+','요양보호사 관리')+`
+    <div class="card"><h3>새 요양보호사 추가</h3>
+      <div class="row">
+        <div><div class="label">이름</div><input id="nw_name" placeholder="이름"></div>
+        <div><div class="label">나이</div><input id="nw_age" type="number" placeholder="나이"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">연락처</div><input id="nw_phone" placeholder="010-"></div>
+        <div><div class="label">이탈위험 상태</div><select id="nw_status"><option>정상</option><option>관심</option><option>주의</option><option>위험</option></select></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="addWorker()">+ 추가</button>
+    </div>
+    <div class="card"><h3>요양보호사 목록 (${workers.length}명)</h3>
+      ${workers.length?workers.map(w=>`<div class="li" onclick="go('mworker_edit',{id:'${w.id}'})"><div class="av"></div><div class="ln"><b>${esc(w.name)} · ${w.age??'-'}세</b><span>${esc(w.phone||'연락처 없음')}</span></div><span class="pill s-${w.attrition_status}">${w.attrition_status}</span></div>`).join(''):'<div class="empty">등록된 요양보호사 없음</div>'}
+    </div>`);
+}
+async function addWorker(){
+  const name=$('nw_name').value.trim();
+  if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  const{error}=await db.from('care_careworkers').insert({name,age:$('nw_age').value||null,phone:$('nw_phone').value,attrition_status:$('nw_status').value});
+  load(false);
+  if(error){toast('추가 오류: '+error.message,true);return;}
+  toast('요양보호사 추가됨: '+name);go('mworker',{},false);
+}
+async function viewWorkerEdit(){
+  const id=S.params.id;if(!id)return go('mworker',{},false);
+  const arr=await q('care_careworkers',{eq:{id}});const w=arr[0];if(!w)return go('mworker',{},false);
+  const so=s=>`<option ${w.attrition_status===s?'selected':''}>${s}</option>`;
+  return shell(hd('+','요양보호사 수정')+`
+    <div class="card">
+      <div class="row">
+        <div><div class="label">이름</div><input id="ew_name" value="${esc(w.name)}"></div>
+        <div><div class="label">나이</div><input id="ew_age" type="number" value="${w.age??''}"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">연락처</div><input id="ew_phone" value="${esc(w.phone||'')}"></div>
+        <div><div class="label">이탈위험 상태</div><select id="ew_status">${['정상','관심','주의','위험'].map(so).join('')}</select></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="updateWorker('${id}')">저장</button>
+      <button class="btn ghost block" style="margin-top:8px;color:#b91c1c;border-color:#fecaca" onclick="deleteWorker('${id}')">삭제</button>
+    </div>`);
+}
+async function updateWorker(id){
+  const name=$('ew_name').value.trim();if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  await db.from('care_careworkers').update({name,age:$('ew_age').value||null,phone:$('ew_phone').value,attrition_status:$('ew_status').value}).eq('id',id);
+  load(false);toast('수정됨');go('mworker',{},false);
+}
+async function deleteWorker(id){
+  if(!confirm('이 요양보호사를 삭제할까요? 담당 수급자·사건의 연결은 해제됩니다.'))return;
+  load(true);await db.from('care_careworkers').delete().eq('id',id);load(false);
+  toast('삭제됨');go('mworker',{},false);
+}
+
+/* ---------- 관리: 수급자 ---------- */
+async function viewManageRecipients(){
+  const[recip,workers]=await Promise.all([q('care_recipients',{order:'created_at'}),q('care_careworkers',{order:'name'})]);
+  const wmap=Object.fromEntries(workers.map(w=>[w.id,w.name]));
+  const opt=workers.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
+  return shell(hd('+','수급자 관리')+`
+    <div class="card"><h3>새 수급자 추가</h3>
+      <div class="row">
+        <div><div class="label">이름</div><input id="nr_name" placeholder="이름"></div>
+        <div><div class="label">나이</div><input id="nr_age" type="number" placeholder="나이"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">담당 요양보호사</div><select id="nr_worker"><option value="">미지정</option>${opt}</select></div>
+        <div><div class="label">위험 상태</div><select id="nr_status"><option>정상</option><option>주의</option><option>위험</option><option>조치중</option><option>조치완료</option></select></div>
+      </div>
+      <div class="row">
+        <div><div class="label">보호자</div><input id="nr_gname" placeholder="보호자 이름"></div>
+        <div><div class="label">관계</div><input id="nr_grel" placeholder="자녀/배우자 등"></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="addRecipient()">+ 추가</button>
+    </div>
+    <div class="card"><h3>수급자 목록 (${recip.length}명)</h3>
+      ${recip.length?recip.map(r=>`<div class="li" onclick="go('mrecipient_edit',{id:'${r.id}'})"><div class="av"></div><div class="ln"><b>${esc(r.name)} · ${r.age??'-'}세</b><span>담당 ${esc(wmap[r.careworker_id]||'미지정')}</span></div><span class="pill s-${r.risk_status}">${r.risk_status}</span></div>`).join(''):'<div class="empty">등록된 수급자 없음</div>'}
+    </div>`);
+}
+async function addRecipient(){
+  const name=$('nr_name').value.trim();
+  if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  const{error}=await db.from('care_recipients').insert({name,age:$('nr_age').value||null,careworker_id:$('nr_worker').value||null,risk_status:$('nr_status').value,guardian_name:$('nr_gname').value,guardian_relation:$('nr_grel').value});
+  load(false);
+  if(error){toast('추가 오류: '+error.message,true);return;}
+  toast('수급자 추가됨: '+name);go('mrecipient',{},false);
+}
+async function viewRecipientEdit(){
+  const id=S.params.id;if(!id)return go('mrecipient',{},false);
+  const[arr,workers]=await Promise.all([q('care_recipients',{eq:{id}}),q('care_careworkers',{order:'name'})]);
+  const r=arr[0];if(!r)return go('mrecipient',{},false);
+  const opt=workers.map(w=>`<option value="${w.id}" ${r.careworker_id===w.id?'selected':''}>${esc(w.name)}</option>`).join('');
+  const so=s=>`<option ${r.risk_status===s?'selected':''}>${s}</option>`;
+  return shell(hd('+','수급자 수정')+`
+    <div class="card">
+      <div class="row">
+        <div><div class="label">이름</div><input id="er_name" value="${esc(r.name)}"></div>
+        <div><div class="label">나이</div><input id="er_age" type="number" value="${r.age??''}"></div>
+      </div>
+      <div class="row">
+        <div><div class="label">담당 요양보호사</div><select id="er_worker"><option value="">미지정</option>${opt}</select></div>
+        <div><div class="label">위험 상태</div><select id="er_status">${['정상','주의','위험','조치중','조치완료'].map(so).join('')}</select></div>
+      </div>
+      <div class="row">
+        <div><div class="label">보호자</div><input id="er_gname" value="${esc(r.guardian_name||'')}"></div>
+        <div><div class="label">관계</div><input id="er_grel" value="${esc(r.guardian_relation||'')}"></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn block" onclick="updateRecipient('${id}')">저장</button>
+      <button class="btn ghost block" style="margin-top:8px;color:#b91c1c;border-color:#fecaca" onclick="deleteRecipient('${id}')">삭제</button>
+    </div>`);
+}
+async function updateRecipient(id){
+  const name=$('er_name').value.trim();if(!name){toast('이름을 입력하세요',true);return;}
+  load(true);
+  await db.from('care_recipients').update({name,age:$('er_age').value||null,careworker_id:$('er_worker').value||null,risk_status:$('er_status').value,guardian_name:$('er_gname').value,guardian_relation:$('er_grel').value}).eq('id',id);
+  load(false);toast('수정됨');go('mrecipient',{},false);
+}
+async function deleteRecipient(id){
+  if(!confirm('이 수급자를 삭제할까요? 관련 사건·조치의 연결은 해제됩니다.'))return;
+  load(true);await db.from('care_recipients').delete().eq('id',id);load(false);
+  toast('삭제됨');go('mrecipient',{},false);
+}
+
+/* ---------- ROUTER ---------- */
+const VIEWS={dash:viewDash,incident:viewIncident,risk:viewRisk,riskcard:viewRiskCard,action:viewAction,sub:viewSub,subdetail:viewSubDetail,scope:viewScope,report:viewReport,worker:viewWorker,workercard:viewWorkerCard,mworker:viewManageWorkers,mworker_edit:viewWorkerEdit,mrecipient:viewManageRecipients,mrecipient_edit:viewRecipientEdit};
+async function render(){
+  if(!S.user){renderLogin();return;}
+  const fn=VIEWS[S.route]||viewDash;
+  load(true);
+  try{const html=await fn();$('root').innerHTML=html;}
+  catch(e){toast('오류: '+e.message,true);console.error(e);}
+  load(false);
+}
+renderLogin();
+</script>
+</body>
+</html>
